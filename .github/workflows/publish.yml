@@ -60,6 +60,9 @@ on:
       # Matches 0.1.0, 1.2.3, 2.0.0-rc.1, etc.
       # See "TAG CONVENTION" above if you prefer tags with a "v" prefix.
       - '*.*.*'
+  # Lets a failed publish be retried from the default branch without burning a
+  # version number. Publishes whatever version package.json currently carries.
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -86,6 +89,15 @@ jobs:
       # step falls back to asking for a token and fails.
       - name: Use an npm that supports trusted publishing
         run: npm install -g npm@latest
+
+      # Trusted publishing fails closed and silently: with an npm older than
+      # 11.5.1 the OIDC exchange is never attempted, the PUT goes out
+      # unauthenticated, and the registry answers 404 rather than 403.
+      - name: Diagnostics
+        run: |
+          echo "node    $(node --version)"
+          echo "npm     $(npm --version)"
+          echo "OIDC request URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
 
       - name: Install dependencies
         run: 'npm ci'
