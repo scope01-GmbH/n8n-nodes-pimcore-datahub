@@ -1,12 +1,15 @@
 {
   "name": "@scope01gmbh/n8n-nodes-pimcore-datahub",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "n8n community node for the Pimcore Datahub GraphQL API - read and write any data object without writing GraphQL, with upsert and batching",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
   "homepage": "https://github.com/scope01-GmbH/n8n-nodes-pimcore-datahub",
+  "bugs": {
+    "url": "https://github.com/scope01-GmbH/n8n-nodes-pimcore-datahub/issues"
+  },
   "keywords": [
     "n8n-community-node-package",
     "n8n",
