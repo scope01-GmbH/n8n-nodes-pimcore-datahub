@@ -1,0 +1,178 @@
+{
+  "id": "pimcoreManual04",
+  "name": "Pimcore \u00b7 04 Hand-written GraphQL",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "trg",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "graphql",
+        "operation": "execute",
+        "query": "query Products($first: Int, $filter: String, $lang: String) {\n  getCustomProductListing(first: $first, filter: $filter, defaultLanguage: $lang) {\n    totalCount\n    edges {\n      node {\n        id\n        fullpath\n        internalid\n        name\n        priceGross\n        image { filename fullpath mimetype }\n      }\n    }\n  }\n}",
+        "variables": "={{ JSON.stringify({ first: 5, filter: JSON.stringify({ active: 1 }), lang: \"en\" }) }}"
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -160
+      ],
+      "id": "manual-query",
+      "name": "Hand-written query",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRO",
+          "name": "Pimcore Datahub - pimcore-x (read only)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "graphql",
+        "operation": "execute",
+        "query": "query Sandbox($filter: String) {\n  getCustomProductListing(filter: $filter, first: 10) {\n    totalCount\n    edges { node { id internalid } }\n  }\n}",
+        "variables": "={{ JSON.stringify({ filter: JSON.stringify({ internalid: { \"$like\": \"N8N-P-%\" } }) }) }}"
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        40
+      ],
+      "id": "sandbox-query",
+      "name": "Find sandbox products",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull two sandbox product IDs out of the previous node's raw GraphQL result.\nconst edges = $input.first().json.getCustomProductListing.edges;\nreturn [{ json: { ids: edges.slice(0, 2).map((edge) => edge.node.id) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        40
+      ],
+      "id": "collect-ids",
+      "name": "Take two IDs"
+    },
+    {
+      "parameters": {
+        "resource": "graphql",
+        "operation": "execute",
+        "query": "mutation Touch($a: Int!, $b: Int!) {\n  first: updateCustomProduct(id: $a, input: { stock: 99 }) {\n    success\n    message\n  }\n  second: updateCustomProduct(id: $b, input: { stock: 98 }) {\n    success\n    message\n  }\n}",
+        "variables": "={{ JSON.stringify({ a: Number($json.ids[0]), b: Number($json.ids[1]) }) }}"
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        480,
+        40
+      ],
+      "id": "manual-mutation",
+      "name": "Hand-written mutation",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "getAll",
+        "className": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CustomProduct"
+        },
+        "returnAll": false,
+        "limit": 3,
+        "filters": {},
+        "fieldSelection": "raw",
+        "rawSelection": "id\nfullpath\ninternalid\nname",
+        "options": {
+          "defaultLanguage": "en"
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ],
+      "id": "locked-endpoint",
+      "name": "Endpoint without introspection",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubLocked",
+          "name": "Pimcore Datahub - pimcore-x (introspection off)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Hand-written query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find sandbox products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Endpoint without introspection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find sandbox products": {
+      "main": [
+        [
+          {
+            "node": "Take two IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take two IDs": {
+      "main": [
+        [
+          {
+            "node": "Hand-written mutation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

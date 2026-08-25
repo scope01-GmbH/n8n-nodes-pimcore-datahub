@@ -1,0 +1,141 @@
+{
+  "id": "pimcoreUpsert02",
+  "name": "Pimcore \u00b7 02 Upsert CustomProducts in two languages",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "trg",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Three rows as an ERP export would deliver them, with two languages each.\nreturn [\n  { json: { ref: 'N8N-P-001', nameEn: 'Desk lamp',    nameDe: 'Schreibtischlampe', price: 49.90, stock: 12 } },\n  { json: { ref: 'N8N-P-002', nameEn: 'Floor lamp',   nameDe: 'Stehlampe',         price: 89.00, stock:  4 } },\n  { json: { ref: 'N8N-P-003', nameEn: 'Wall lamp',    nameDe: 'Wandlampe',         price: 34.50, stock: 27 } },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "src-rows",
+      "name": "ERP rows"
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "createOrUpdate",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "matchBy": "field",
+        "matchField": "internalid",
+        "matchValue": "={{ $json.ref }}",
+        "ifNotFound": "create",
+        "key": "={{ $json.ref }}",
+        "parentBy": "path",
+        "parentPath": "/n8n-sandbox",
+        "published": true,
+        "input": "={{ JSON.stringify({ internalid: $json.ref, productNumber: $json.ref, name: $json.nameEn, stock: $json.stock, active: true, minPurchase: 1, priceGross: $json.price, priceNet: Math.round($json.price / 1.19 * 100) / 100 }) }}",
+        "options": {
+          "defaultLanguage": "en",
+          "batchSize": 25
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "id": "upsert-en",
+      "name": "Upsert (English)",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "update",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "lookupBy": "id",
+        "objectId": "={{ $json.id }}",
+        "input": "={{ JSON.stringify({ name: $('ERP rows').item.json.nameDe }) }}",
+        "options": {
+          "defaultLanguage": "de",
+          "batchSize": 25
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "id": "update-de",
+      "name": "Add German name",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "ERP rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP rows": {
+      "main": [
+        [
+          {
+            "node": "Upsert (English)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert (English)": {
+      "main": [
+        [
+          {
+            "node": "Add German name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

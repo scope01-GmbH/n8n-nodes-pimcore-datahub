@@ -1,0 +1,62 @@
+{
+  "name": "@scope01gmbh/n8n-nodes-pimcore-datahub",
+  "version": "0.1.0",
+  "description": "n8n community node for the Pimcore Datahub GraphQL API - read and write any data object without writing GraphQL, with upsert and batching",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/scope01-GmbH/n8n-nodes-pimcore-datahub",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "n8n-node",
+    "pimcore",
+    "datahub",
+    "graphql",
+    "pim"
+  ],
+  "author": {
+    "name": "scope01 GmbH",
+    "email": "invoice@scope01.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scope01-GmbH/n8n-nodes-pimcore-datahub.git"
+  },
+  "scripts": {
+    "prebuild": "rm -rf dist .tsbuildinfo",
+    "build": "n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "test": "npm run build --silent && node --test test/*.test.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/PimcoreDatahubApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/PimcoreDatahub/PimcoreDatahub.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "*",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "release-it": "^19.0.4",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "id": "pimcoreAssets03",
+  "name": "Pimcore \u00b7 03 Asset round trip",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "trg",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "asset",
+        "operation": "getAllAssets",
+        "returnAll": false,
+        "limit": 1,
+        "assetFilters": {
+          "filter": "{\"type\": \"image\"}",
+          "sortBy": "id",
+          "sortOrder": "ASC"
+        },
+        "assetFieldSelection": "auto",
+        "downloadFile": true,
+        "outputBinaryField": "file",
+        "thumbnail": "",
+        "assetOptions": {}
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "asset-download",
+      "name": "Download an image",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRO",
+          "name": "Pimcore Datahub - pimcore-x (read only)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "asset",
+        "operation": "uploadAsset",
+        "assetFilename": "={{ 'n8n-' + $now.toMillis() + '-' + $json.filename }}",
+        "assetParentBy": "path",
+        "assetParentPath": "/n8n-sandbox",
+        "binaryPropertyName": "file",
+        "assetMetadata": {
+          "entry": [
+            {
+              "name": "title",
+              "type": "input",
+              "data": "={{ 'Copied by n8n from ' + $json.fullpath }}",
+              "language": ""
+            }
+          ]
+        },
+        "assetOptions": {
+          "batchSize": 1
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "id": "asset-upload",
+      "name": "Upload into sandbox",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "createOrUpdate",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "matchBy": "field",
+        "matchField": "internalid",
+        "matchValue": "N8N-P-001",
+        "ifNotFound": "error",
+        "parentBy": "path",
+        "parentPath": "/n8n-sandbox",
+        "published": true,
+        "input": "={{ JSON.stringify({ image: { id: Number($json.id) } }) }}",
+        "options": {
+          "defaultLanguage": "en",
+          "batchSize": 1,
+          "returnWrittenObject": false
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "id": "attach-image",
+      "name": "Attach to product",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "get",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "lookupBy": "id",
+        "objectId": "={{ $json.id }}",
+        "fieldSelection": "selected",
+        "fields": [
+          "id",
+          "internalid",
+          "name",
+          "image.filename",
+          "image.fullpath",
+          "image.mimetype"
+        ],
+        "options": {
+          "defaultLanguage": "en"
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        720,
+        0
+      ],
+      "id": "verify-image",
+      "name": "Read it back",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Download an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download an image": {
+      "main": [
+        [
+          {
+            "node": "Upload into sandbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload into sandbox": {
+      "main": [
+        [
+          {
+            "node": "Attach to product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach to product": {
+      "main": [
+        [
+          {
+            "node": "Read it back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

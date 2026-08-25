@@ -1,0 +1,84 @@
+{
+  "id": "pimcoreRead01",
+  "name": "Pimcore \u00b7 01 Read CustomProducts",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "trg",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "getAll",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "returnAll": false,
+        "limit": 10,
+        "filters": {
+          "filter": "{\"active\": 1}",
+          "sortBy": "internalid",
+          "sortOrder": "ASC",
+          "published": true
+        },
+        "fieldSelection": "selected",
+        "fields": [
+          "id",
+          "fullpath",
+          "internalid",
+          "productNumber",
+          "priceGross",
+          "stock",
+          "name",
+          "description",
+          "image.filename",
+          "image.fullpath"
+        ],
+        "options": {
+          "defaultLanguage": "en"
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        40,
+        0
+      ],
+      "id": "read-products",
+      "name": "Read products",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRO",
+          "name": "Pimcore Datahub - pimcore-x (read only)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Read products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

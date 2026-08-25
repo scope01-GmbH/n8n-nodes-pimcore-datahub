@@ -1,0 +1,190 @@
+{
+  "id": "pimcoreClean05",
+  "name": "Pimcore \u00b7 05 Clean the sandbox",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ],
+      "id": "trg",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "getAll",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "returnAll": true,
+        "filters": {
+          "filter": "{\"internalid\": {\"$like\": \"N8N-P-%\"}}",
+          "published": false
+        },
+        "fieldSelection": "selected",
+        "fields": [
+          "id",
+          "fullpath"
+        ],
+        "options": {
+          "pageSize": 50
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -120
+      ],
+      "id": "find-objects",
+      "name": "Find sandbox products",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "dataObject",
+        "operation": "delete",
+        "className": {
+          "__rl": true,
+          "mode": "list",
+          "value": "CustomProduct",
+          "cachedResultName": "CustomProduct"
+        },
+        "lookupBy": "id",
+        "objectId": "={{ $json.id }}",
+        "options": {
+          "batchSize": 25
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        280,
+        -120
+      ],
+      "id": "delete-objects",
+      "name": "Delete products",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "asset",
+        "operation": "getAllAssets",
+        "returnAll": true,
+        "assetFilters": {
+          "filter": "{\"path\": {\"$like\": \"/n8n-sandbox/%\"}}"
+        },
+        "assetFieldSelection": "selected",
+        "assetFieldNames": [
+          "id",
+          "fullpath",
+          "type"
+        ],
+        "downloadFile": false,
+        "assetOptions": {
+          "pageSize": 50
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        0,
+        120
+      ],
+      "id": "find-assets",
+      "name": "Find sandbox assets",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "asset",
+        "operation": "deleteAsset",
+        "assetLookupBy": "id",
+        "assetId": "={{ $json.id }}",
+        "assetOptions": {
+          "batchSize": 25
+        }
+      },
+      "type": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
+      "typeVersion": 1,
+      "position": [
+        280,
+        120
+      ],
+      "id": "delete-assets",
+      "name": "Delete assets",
+      "credentials": {
+        "pimcoreDatahubApi": {
+          "id": "pimcoreDatahubRW",
+          "name": "Pimcore Datahub - pimcore-x (read/write)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Find sandbox products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find sandbox assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find sandbox products": {
+      "main": [
+        [
+          {
+            "node": "Delete products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find sandbox assets": {
+      "main": [
+        [
+          {
+            "node": "Delete assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
