@@ -198,6 +198,38 @@ The unit tests run against `test/fixtures/introspection.json`, captured from a
 real Pimcore instance, so the selection-set builder is exercised against real
 union-typed relations and a real asset tree rather than a toy schema.
 
+### Testing against a running n8n
+
+Two ways to get the node into a local n8n, and they are mutually exclusive —
+both target `~/.n8n/nodes/node_modules/<package>`.
+
+**Released build** (what a user gets):
+
+```bash
+docker exec n8n sh -c 'cd /home/node/.n8n/nodes && \
+  npm install @scope01gmbh/n8n-nodes-pimcore-datahub@latest'
+docker restart n8n
+```
+
+**Working copy** (for iterating): bind-mount the repo over that same path when
+starting the container, and `npm run build` after each change.
+
+```bash
+docker run -d --name n8n -p 5678:5678 \
+  -v n8n_data:/home/node/.n8n \
+  -v "$PWD":/home/node/.n8n/nodes/node_modules/@scope01gmbh/n8n-nodes-pimcore-datahub \
+  --add-host pimcore-x.local:host-gateway \
+  docker.n8n.io/n8nio/n8n
+```
+
+Mounting into `~/.n8n/custom` instead does **not** work: that path cannot
+resolve `n8n-workflow`, so the node loads as nothing at all with no error.
+
+If you swap from the bind mount back to the npm install, delete the empty
+directory the mount leaves behind first — otherwise n8n finds a package folder
+with no `package.json` and logs *failed to load package metadata*, which reads
+like a corrupt download rather than a leftover mountpoint.
+
 `examples/` holds importable credentials and five workflows covering reads,
 two-language upserts, a full asset round trip, hand-written GraphQL, an endpoint
 without introspection, and a cleanup pass. See `examples/README.md`.
