@@ -25,6 +25,7 @@ import {
 	buildDocument,
 	buildSelectionSet,
 	listFieldPaths,
+	SYSTEM_METADATA_FIELDS,
 	type AliasedOperation,
 	type GraphqlArg,
 } from './QueryBuilder';
@@ -263,6 +264,7 @@ function writeSelection(
 	const body = buildSelectionSet(schema, `object_${className}`, {
 		mode: 'auto',
 		scalarsOnly: true,
+		excludeFields: SYSTEM_METADATA_FIELDS,
 	});
 
 	return body
@@ -290,7 +292,35 @@ function failItem(
 		});
 	}
 
-	output.push({ json: { error: message }, pairedItem: { item: itemIndex } });
+	output.push({
+		json: description ? { error: message, description } : { error: message },
+		pairedItem: { item: itemIndex },
+	});
+}
+
+/**
+ * failItem for a caught error, keeping any description it carries.
+ *
+ * `graphqlRequest` puts the formatted GraphQL errors on NodeApiError.description.
+ * Reading only `.message` off the caught error throws that away and leaves the
+ * user with "Pimcore Datahub returned a GraphQL error" and nothing else.
+ */
+function failItemFromError(
+	this: IExecuteFunctions,
+	output: INodeExecutionData[],
+	itemIndex: number,
+	error: unknown,
+): void {
+	const message = error instanceof Error ? error.message : String(error);
+	const description = (error as { description?: unknown }).description;
+
+	failItem.call(
+		this,
+		output,
+		itemIndex,
+		message,
+		typeof description === 'string' && description !== '' ? description : undefined,
+	);
 }
 
 // ---------------------------------------------------------------- raw
@@ -315,7 +345,7 @@ async function executeRawGraphql(
 
 			output.push(toItem((response.data ?? {}) as IDataObject, itemIndex));
 		} catch (error) {
-			failItem.call(this, output, itemIndex, (error as Error).message);
+			failItemFromError.call(this, output, itemIndex, error);
 		}
 	}
 
@@ -521,7 +551,7 @@ async function executeGetAll(
 				if (edges.length === 0 || edges.length < wanted) break;
 			}
 		} catch (error) {
-			failItem.call(this, output, itemIndex, (error as Error).message);
+			failItemFromError.call(this, output, itemIndex, error);
 		}
 	}
 
@@ -715,7 +745,7 @@ async function executeWrite(
 				});
 				aliasToItem.set(alias, itemIndex);
 			} catch (error) {
-				failItem.call(this, output, itemIndex, (error as Error).message);
+				failItemFromError.call(this, output, itemIndex, error);
 			}
 		}
 
@@ -748,10 +778,17 @@ async function runMutationBatch(
 	throwOnGlobalErrors.call(this, errorsByAlias);
 
 	for (const [alias, itemIndex] of aliasToItem) {
-		const aliasErrors = errorsByAlias.get(alias);
+		const aliasErrors = errorsByAlias.get(alias) ?? [];
 
-		if (aliasErrors?.length) {
-			failItem.call(this, output, itemIndex, formatErrors(aliasErrors));
+		// Errors under `<alias>.<resultKey>` are the echoed-back object failing to
+		// resolve, not the write failing. Pimcore commits before it resolves the
+		// output selection, so failing the item here would report a write that
+		// actually happened as an error - and invite a duplicate on the next run.
+		const selectionErrors = aliasErrors.filter((error) => error.path?.[1] === resultKey);
+		const mutationErrors = aliasErrors.filter((error) => error.path?.[1] !== resultKey);
+
+		if (mutationErrors.length) {
+			failItem.call(this, output, itemIndex, formatErrors(mutationErrors));
 			continue;
 		}
 
@@ -775,6 +812,13 @@ async function runMutationBatch(
 					success: true,
 					message: result.message,
 					...((result[resultKey] as IDataObject | undefined) ?? {}),
+					...(selectionErrors.length
+						? {
+								warning: `The write succeeded, but the endpoint could not return part of the object: ${formatErrors(
+									selectionErrors,
+								)}`,
+							}
+						: {}),
 				},
 				itemIndex,
 			),
@@ -857,7 +901,7 @@ async function executeUpsert(
 				});
 				aliasToItem.set(alias, itemIndex);
 			} catch (error) {
-				failItem.call(this, output, itemIndex, (error as Error).message);
+				failItemFromError.call(this, output, itemIndex, error);
 			}
 		}
 
@@ -1287,7 +1331,7 @@ async function executeAssetGetAll(
 				if (edges.length === 0 || edges.length < wanted) break;
 			}
 		} catch (error) {
-			failItem.call(this, output, itemIndex, (error as Error).message);
+			failItemFromError.call(this, output, itemIndex, error);
 		}
 	}
 
@@ -1425,7 +1469,7 @@ async function executeAssetWrite(
 				operations.push({ alias, field, args, selection });
 				aliasToItem.set(alias, itemIndex);
 			} catch (error) {
-				failItem.call(this, output, itemIndex, (error as Error).message);
+				failItemFromError.call(this, output, itemIndex, error);
 			}
 		}
 

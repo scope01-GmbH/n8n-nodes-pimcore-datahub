@@ -11,6 +11,29 @@ import { isLeafField, unwrapType, type SchemaIndex } from './Introspection';
  */
 const TREE_FIELDS = new Set(['children', 'parent', 'siblings', '_siblings']);
 
+/**
+ * Pimcore's own metadata fields on a data object.
+ *
+ * Present in every class's schema, but a Datahub endpoint only resolves them
+ * when its configuration grants them explicitly. Selecting them on a mutation's
+ * `output` is what produced `Internal server error (at op0.output.creationDate)`
+ * and friends: the write succeeded, then every ungranted field failed to
+ * resolve. Identity fields (id, fullpath, key, published) are deliberately not
+ * in here - a workflow needs them to pick up what it just wrote.
+ */
+export const SYSTEM_METADATA_FIELDS = new Set([
+	'childrenSortBy',
+	'classname',
+	'creationDate',
+	'index',
+	'modificationDate',
+	'objectType',
+	'path',
+	'releaseDate',
+	'type',
+	'version',
+]);
+
 /** Fields on a related object that identify it well enough to be useful. */
 const RELATION_STUB = ['id', 'fullpath'];
 
@@ -51,6 +74,13 @@ export interface SelectionOptions {
 	 * back with a separate query instead.
 	 */
 	scalarsOnly?: boolean;
+	/**
+	 * Field names to leave out of an auto selection, at every depth.
+	 *
+	 * Used for mutation results, where Pimcore's metadata fields are in the
+	 * schema but not necessarily resolvable by the endpoint.
+	 */
+	excludeFields?: Set<string>;
 }
 
 /** One aliased call inside a batched document. */
@@ -131,11 +161,13 @@ function autoSelection(
 	depth: number,
 	maxDepth: number,
 	scalarsOnly: boolean,
+	excludeFields: Set<string> = new Set(),
 ): string {
 	const lines: string[] = [];
 
 	for (const field of schema.getFields(typeName)) {
 		if (TREE_FIELDS.has(field.name)) continue;
+		if (excludeFields.has(field.name)) continue;
 		if (BINARY_FIELDS.get(typeName)?.has(field.name)) continue;
 
 		if (isLeafField(field)) {
@@ -164,7 +196,14 @@ function autoSelection(
 		}
 
 		if (kind === 'OBJECT') {
-			const nested = autoSelection(schema, name, depth + 1, maxDepth, scalarsOnly);
+			const nested = autoSelection(
+				schema,
+				name,
+				depth + 1,
+				maxDepth,
+				scalarsOnly,
+				excludeFields,
+			);
 			if (nested.trim() === '') continue;
 
 			lines.push(`${indent(depth)}${field.name} {\n${nested}\n${indent(depth)}}`);
@@ -298,6 +337,7 @@ export function buildSelectionSet(
 						depth,
 						options.maxDepth ?? 1,
 						options.scalarsOnly === true,
+						options.excludeFields,
 					);
 
 		return appendExtras(schema, concrete, body, options.extra ?? [], depth);

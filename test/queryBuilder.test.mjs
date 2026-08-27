@@ -7,6 +7,7 @@ import {
 	buildDocument,
 	buildSelectionSet,
 	listFieldPaths,
+	SYSTEM_METADATA_FIELDS,
 } from '../dist/nodes/PimcoreDatahub/QueryBuilder.js';
 
 /**
@@ -269,4 +270,36 @@ test('a union member drops selected fields it does not have', () => {
 	assert.match(assetPart, /^\s*mimetype$/m);
 	assert.match(folderPart, /^\s*filename$/m);
 	assert.doesNotMatch(folderPart, /mimetype/);
+});
+
+test('excludeFields drops Pimcore metadata but keeps identity and business fields', () => {
+	// A mutation's `output` is where this matters: the metadata fields are in
+	// every class's schema, but an endpoint only resolves them when explicitly
+	// granted. Selecting them produced one `Internal server error (at
+	// op0.output.<field>)` per field on a write that had already succeeded.
+	const selection = buildSelectionSet(schema, PRODUCT, {
+		mode: 'auto',
+		scalarsOnly: true,
+		excludeFields: SYSTEM_METADATA_FIELDS,
+	});
+
+	for (const field of ['creationDate', 'modificationDate', 'objectType', 'index', 'version', 'childrenSortBy', 'classname']) {
+		assert.doesNotMatch(selection, new RegExp(`^\\s*${field}$`, 'm'), `${field} should be excluded`);
+	}
+
+	// Identity fields are what a workflow needs to pick up what it just wrote.
+	for (const field of ['id', 'fullpath', 'key', 'published']) {
+		assert.match(selection, new RegExp(`^\\s*${field}$`, 'm'), `${field} should survive`);
+	}
+
+	// And the fields the user actually cares about are untouched.
+	for (const field of ['name', 'productNumber', 'priceGross']) {
+		assert.match(selection, new RegExp(`^\\s*${field}$`, 'm'), `${field} should survive`);
+	}
+});
+
+test('excludeFields is not applied unless asked for', () => {
+	const selection = buildSelectionSet(schema, PRODUCT, { mode: 'auto', scalarsOnly: true });
+
+	assert.match(selection, /^\s*creationDate$/m);
 });
