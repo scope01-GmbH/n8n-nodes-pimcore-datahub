@@ -228,12 +228,38 @@ export const assetFields: INodeProperties[] = [
 	},
 
 	{
+		// Version 1 carried this at the top level.
+		displayName: 'Asset Type',
+		name: 'assetType',
+		type: 'options',
+		options: [
+			{ name: 'Archive', value: 'archive' },
+			{ name: 'Audio', value: 'audio' },
+			{
+				name: 'Detect From File',
+				value: 'auto',
+				description: 'Derive the type from the binary mime type',
+			},
+			{ name: 'Document', value: 'document' },
+			{ name: 'Image', value: 'image' },
+			{ name: 'Text', value: 'text' },
+			{ name: 'Unknown', value: 'unknown' },
+			{ name: 'Video', value: 'video' },
+		],
+		default: 'auto',
+		displayOptions: {
+			show: { ...showForAsset, operation: ['uploadAsset'], '@version': [1] },
+		},
+	},
+	{
 		displayName: 'Additional Fields',
 		name: 'additionalFields',
 		type: 'collection',
 		placeholder: 'Add Field',
 		default: {},
-		displayOptions: { show: { ...showForAsset, operation: ['uploadAsset'] } },
+		displayOptions: {
+			show: { ...showForAsset, operation: ['uploadAsset'], '@version': [2] },
+		},
 		options: [
 			{
 				// `createAsset` maps this straight onto a Pimcore\Model\Asset
@@ -337,6 +363,7 @@ export const assetFields: INodeProperties[] = [
 				...showForAsset,
 				operation: ['getAsset', 'getAllAssets'],
 				downloadFile: [true],
+				'@version': [2],
 			},
 		},
 		options: [
@@ -357,6 +384,40 @@ export const assetFields: INodeProperties[] = [
 					'Name of a Pimcore thumbnail configuration to download instead of the original file. Leave empty for the original.',
 			},
 		],
+	},
+
+	{
+		// Version 1 carried these two at the top level.
+		displayName: 'Output Binary Field',
+		name: 'outputBinaryField',
+		type: 'string',
+		default: 'data',
+		displayOptions: {
+			show: {
+				...showForAsset,
+				operation: ['getAsset', 'getAllAssets'],
+				downloadFile: [true],
+				'@version': [1],
+			},
+		},
+		hint: 'The name of the output binary field to put the file in',
+	},
+	{
+		displayName: 'Thumbnail',
+		name: 'thumbnail',
+		type: 'string',
+		default: '',
+		placeholder: 'content',
+		displayOptions: {
+			show: {
+				...showForAsset,
+				operation: ['getAsset', 'getAllAssets'],
+				downloadFile: [true],
+				'@version': [1],
+			},
+		},
+		description:
+			'Name of a Pimcore thumbnail configuration to download instead of the original file. Leave empty for the original.',
 	},
 
 	// ------------------------------------------------------------ selection

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.1
+
+Fixes two regressions 2.0.0 caused in workflows built on 1.0.x.
+
+- The node declared `version: [2]` alone, so a node saved as typeVersion 1 could
+  no longer resolve its own type: it lost its icon and stopped rendering its
+  parameters. It now declares `[1, 2]`.
+- `Published` and the upsert `Key` moved into Additional Fields in 2.0.0, but a
+  1.0.x node keeps them at the top level. Reads fell through to the defaults,
+  which would have published objects meant to stay unpublished and keyed them
+  off the match value instead of the workflow's own expression. The moved
+  parameters are now read from the collection first and the legacy top-level
+  parameter second, and the version 1 UI is preserved with `@version` gating -
+  the same for `Asset Type`, `Output Binary Field` and `Thumbnail`.
+- A node with an `input` value and no `inputMode` is treated as Raw JSON, so
+  pre-2.0.0 writes keep sending the JSON they always sent.
+
 ## 2.0.0
 
 **Breaking.** Create, Update and Create or Update no longer take field values

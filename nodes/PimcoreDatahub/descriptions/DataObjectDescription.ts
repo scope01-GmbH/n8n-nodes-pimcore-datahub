@@ -402,7 +402,7 @@ export const dataObjectFields: INodeProperties[] = [
 		],
 		default: 'mapped',
 		displayOptions: {
-			show: { ...showForDataObject, operation: INPUT_OPERATIONS },
+			show: { ...showForDataObject, operation: INPUT_OPERATIONS, '@version': [2] },
 		},
 		description: 'How the field values for this write are supplied',
 	},
@@ -430,7 +430,12 @@ export const dataObjectFields: INodeProperties[] = [
 			},
 		},
 		displayOptions: {
-			show: { ...showForDataObject, operation: INPUT_OPERATIONS, inputMode: ['mapped'] },
+			show: {
+				...showForDataObject,
+				operation: INPUT_OPERATIONS,
+				inputMode: ['mapped'],
+				'@version': [2],
+			},
 		},
 	},
 	{
@@ -444,7 +449,22 @@ export const dataObjectFields: INodeProperties[] = [
 				...showForDataObject,
 				operation: INPUT_OPERATIONS,
 				inputMode: ['json'],
+				'@version': [2],
 			},
+		},
+		description:
+			'Field values to write, as JSON. Relations take {"ID": 123} or {"fullpath": "/a/b"} entries. Localized fields are written in the language given by Default Language.',
+	},
+	{
+		// Version 1 had no Input Mode: the JSON field was the only way to supply
+		// field values, so on a node built then it stands alone.
+		displayName: 'Input',
+		name: 'input',
+		type: 'json',
+		default: '{}',
+		required: true,
+		displayOptions: {
+			show: { ...showForDataObject, operation: INPUT_OPERATIONS, '@version': [1] },
 		},
 		description:
 			'Field values to write, as JSON. Relations take {"ID": 123} or {"fullpath": "/a/b"} entries. Localized fields are written in the language given by Default Language.',
@@ -453,12 +473,37 @@ export const dataObjectFields: INodeProperties[] = [
 	// takes Key as a required field above, so offering it here as well would give
 	// two places to set one value.
 	{
+		displayName: 'Published',
+		name: 'published',
+		type: 'boolean',
+		default: true,
+		displayOptions: {
+			show: { ...showForDataObject, operation: ['create', 'createOrUpdate'], '@version': [1] },
+		},
+		description: 'Whether newly created objects are published',
+	},
+	{
+		displayName: 'Key',
+		name: 'key',
+		type: 'string',
+		default: '',
+		displayOptions: {
+			show: {
+				...showForDataObject,
+				operation: ['createOrUpdate'],
+				ifNotFound: ['create'],
+				'@version': [1],
+			},
+		},
+		description: 'Object key used when creating. Leave empty to derive it from the match value.',
+	},
+	{
 		displayName: 'Additional Fields',
 		name: 'additionalFields',
 		type: 'collection',
 		placeholder: 'Add Field',
 		default: {},
-		displayOptions: { show: { ...showForDataObject, operation: ['create'] } },
+		displayOptions: { show: { ...showForDataObject, operation: ['create'], '@version': [2] } },
 		options: [
 			{
 				displayName: 'Published',
@@ -475,7 +520,9 @@ export const dataObjectFields: INodeProperties[] = [
 		type: 'collection',
 		placeholder: 'Add Field',
 		default: {},
-		displayOptions: { show: { ...showForDataObject, operation: ['createOrUpdate'] } },
+		displayOptions: {
+			show: { ...showForDataObject, operation: ['createOrUpdate'], '@version': [2] },
+		},
 		options: [
 			{
 				displayName: 'Key',

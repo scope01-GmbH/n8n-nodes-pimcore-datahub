@@ -51,7 +51,11 @@ export class PimcoreDatahub implements INodeType {
 		name: 'pimcoreDatahub',
 		icon: { light: 'file:pimcore.svg', dark: 'file:pimcore.dark.svg' },
 		group: ['transform'],
-		version: [2],
+		// Both versions, sharing one description. Dropping 1 here is what broke
+		// every workflow saved against 1.0.x: a node carries the typeVersion it was
+		// created with, and n8n cannot resolve a type that no longer declares it -
+		// the node loses its icon and its parameters stop rendering.
+		version: [1, 2],
 		subtitle: '={{ $parameter["operation"] + ": " + $parameter["resource"] }}',
 		description: 'Read and write Pimcore data objects through a Datahub GraphQL endpoint',
 		defaults: { name: 'Pimcore Datahub' },
@@ -243,7 +247,17 @@ function readOptions(this: IExecuteFunctions, itemIndex: number): IDataObject {
 	return this.getNodeParameter('options', itemIndex, {}) as IDataObject;
 }
 
-/** Reads one entry out of the operation's Additional Fields collection. */
+/**
+ * Reads one entry out of the operation's Additional Fields collection.
+ *
+ * Falls back to the parameter of the same name at the top level, which is where
+ * a version 1 node keeps it. That fallback is not cosmetic: a workflow built
+ * before 2.0.0 carries `published: false` and its own `key` expression up
+ * there, and reading only the collection would quietly publish objects that
+ * were meant to stay unpublished and key them off the match value. The legacy
+ * properties are still declared, gated to `@version: [1]`, so the lookup
+ * resolves their expressions the same way it always did.
+ */
 function additionalField<T>(
 	this: IExecuteFunctions,
 	name: string,
@@ -252,7 +266,27 @@ function additionalField<T>(
 ): T {
 	const bag = this.getNodeParameter('additionalFields', itemIndex, {}) as IDataObject;
 
-	return (bag[name] === undefined ? fallback : bag[name]) as T;
+	if (bag[name] !== undefined) return bag[name] as T;
+
+	return this.getNodeParameter(name, itemIndex, fallback) as T;
+}
+
+/**
+ * Whether this node supplies its input as raw JSON rather than mapped fields.
+ *
+ * A node built before Input Mode existed has an `input` value and no
+ * `inputMode`, and its JSON is the only field values it has. Defaulting that to
+ * Mapped Fields would silently send an empty object and wipe the fields the
+ * workflow means to write, so the saved `input` decides instead.
+ */
+function writesRawJson(this: IExecuteFunctions, itemIndex: number): boolean {
+	const saved = this.getNode().parameters;
+
+	if (saved.inputMode === undefined && saved.input !== undefined) {
+		return true;
+	}
+
+	return this.getNodeParameter('inputMode', itemIndex, 'mapped') === 'json';
 }
 
 /**
@@ -267,9 +301,7 @@ async function writeInput(
 	itemIndex: number,
 	className: string,
 ): Promise<IDataObject> {
-	const mode = this.getNodeParameter('inputMode', itemIndex, 'mapped') as 'mapped' | 'json';
-
-	if (mode === 'json') {
+	if (writesRawJson.call(this, itemIndex)) {
 		if (hasUnresolvedExpression(this.getNode().parameters.input)) {
 			throw new NodeOperationError(this.getNode(), 'Input contains an unevaluated expression', {
 				itemIndex,
