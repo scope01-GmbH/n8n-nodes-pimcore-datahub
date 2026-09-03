@@ -1,6 +1,6 @@
 {
   "name": "@scope01gmbh/n8n-nodes-pimcore-datahub",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "description": "n8n community node for the Pimcore Datahub GraphQL API - read and write any data object without writing GraphQL, with upsert and batching",
   "license": "MIT",
   "publishConfig": {
