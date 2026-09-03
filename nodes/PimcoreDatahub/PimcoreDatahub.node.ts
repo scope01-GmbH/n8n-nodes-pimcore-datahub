@@ -7,6 +7,7 @@ import type {
 	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
+	ResourceMapperFields,
 } from 'n8n-workflow';
 import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
@@ -21,6 +22,7 @@ import {
 	type GraphqlError,
 } from './GenericFunctions';
 import { fetchSchema, type SchemaIndex } from './Introspection';
+import { inputTypeName, resourceMapperFields, writableFields } from './WriteSchema';
 import {
 	buildDocument,
 	buildSelectionSet,
@@ -49,7 +51,7 @@ export class PimcoreDatahub implements INodeType {
 		name: 'pimcoreDatahub',
 		icon: { light: 'file:pimcore.svg', dark: 'file:pimcore.dark.svg' },
 		group: ['transform'],
-		version: [1],
+		version: [2],
 		subtitle: '={{ $parameter["operation"] + ": " + $parameter["resource"] }}',
 		description: 'Read and write Pimcore data objects through a Datahub GraphQL endpoint',
 		defaults: { name: 'Pimcore Datahub' },
@@ -128,6 +130,24 @@ export class PimcoreDatahub implements INodeType {
 					value: option.value,
 					description: option.description,
 				}));
+			},
+		},
+
+		resourceMapping: {
+			/** Writable fields of the chosen class, for the Fields to Write mapper. */
+			async getWritableFields(this: ILoadOptionsFunctions): Promise<ResourceMapperFields> {
+				const className = currentClassName.call(this);
+
+				if (!className) {
+					return {
+						fields: [],
+						emptyFieldsNotice: 'Choose a class first to load its writable fields.',
+					};
+				}
+
+				const schema = await fetchSchema.call(this);
+
+				return resourceMapperFields(schema, className);
 			},
 		},
 	};
@@ -221,6 +241,69 @@ async function schemaFor(this: IExecuteFunctions, needed: boolean): Promise<Sche
 
 function readOptions(this: IExecuteFunctions, itemIndex: number): IDataObject {
 	return this.getNodeParameter('options', itemIndex, {}) as IDataObject;
+}
+
+/** Reads one entry out of the operation's Additional Fields collection. */
+function additionalField<T>(
+	this: IExecuteFunctions,
+	name: string,
+	itemIndex: number,
+	fallback: T,
+): T {
+	const bag = this.getNodeParameter('additionalFields', itemIndex, {}) as IDataObject;
+
+	return (bag[name] === undefined ? fallback : bag[name]) as T;
+}
+
+/**
+ * Field values for a write, from whichever input mode the node is in.
+ *
+ * Raw JSON stays a first class mode rather than a fallback: an endpoint with
+ * introspection disabled gives the mapper no field list to work from, and that
+ * is a supported way to run Datahub.
+ */
+async function writeInput(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	className: string,
+): Promise<IDataObject> {
+	const mode = this.getNodeParameter('inputMode', itemIndex, 'mapped') as 'mapped' | 'json';
+
+	if (mode === 'json') {
+		if (hasUnresolvedExpression(this.getNode().parameters.input)) {
+			throw new NodeOperationError(this.getNode(), 'Input contains an unevaluated expression', {
+				itemIndex,
+				description:
+					'The Input field holds {{ ... }} placeholders but is in fixed mode, so they would be written to Pimcore verbatim. Switch the field to expression mode.',
+			});
+		}
+
+		return parseJsonParameter(
+			this.getNodeParameter('input', itemIndex, {}),
+			this,
+			itemIndex,
+			'Input',
+		);
+	}
+
+	const mapper = this.getNodeParameter('fieldsToWrite', itemIndex, {}) as {
+		mappingMode?: string;
+		value?: IDataObject | null;
+	};
+
+	if (mapper.mappingMode !== 'autoMapInputData') {
+		return mapper.value ?? {};
+	}
+
+	// Auto-map takes the item as it arrives, so it has to be narrowed to what the
+	// class accepts: an item that came out of a Get carries id, fullpath and the
+	// rest of the read-only metadata, and GraphQL rejects the entire mutation on
+	// the first field the input type does not define.
+	const schema = await fetchSchema.call(this as unknown as ILoadOptionsFunctions);
+	const writable = new Set(writableFields(schema, className).map((field) => field.name));
+	const item = this.getInputData()[itemIndex]?.json ?? {};
+
+	return Object.fromEntries(Object.entries(item).filter(([name]) => writable.has(name)));
 }
 
 /** Selection set for read operations, honouring the Fields parameter. */
@@ -581,13 +664,13 @@ function throwOnGlobalErrors(
 }
 
 /** Shared argument assembly for create and update mutations. */
-function mutationArgs(
+async function mutationArgs(
 	this: IExecuteFunctions,
 	itemIndex: number,
 	className: string,
 	kind: 'create' | 'update',
 	identity: { objectId?: number; fullpath?: string; key?: string },
-): GraphqlArg[] {
+): Promise<GraphqlArg[]> {
 	const options = readOptions.call(this, itemIndex);
 	const args: GraphqlArg[] = [];
 
@@ -617,7 +700,7 @@ function mutationArgs(
 		args.push({
 			arg: 'published',
 			type: 'Boolean',
-			value: this.getNodeParameter('published', itemIndex, true),
+			value: additionalField.call(this, 'published', itemIndex, true),
 		});
 	} else {
 		if (identity.objectId !== undefined) {
@@ -642,23 +725,10 @@ function mutationArgs(
 		args.push({ arg: 'omitMandatoryCheck', type: 'Boolean', value: true });
 	}
 
-	if (hasUnresolvedExpression(this.getNode().parameters.input)) {
-		throw new NodeOperationError(this.getNode(), 'Input contains an unevaluated expression', {
-			itemIndex,
-			description:
-				'The Input field holds {{ ... }} placeholders but is in fixed mode, so they would be written to Pimcore verbatim. Switch the field to expression mode.',
-		});
-	}
-
 	args.push({
 		arg: 'input',
-		type: `Update${className}Input`,
-		value: parseJsonParameter(
-			this.getNodeParameter('input', itemIndex, {}),
-			this,
-			itemIndex,
-			'Input',
-		),
+		type: inputTypeName(className),
+		value: await writeInput.call(this, itemIndex, className),
 	});
 
 	return args;
@@ -715,12 +785,12 @@ async function executeWrite(
 									},
 								];
 				} else if (operation === 'create') {
-					args = mutationArgs.call(this, itemIndex, className, 'create', {
+					args = await mutationArgs.call(this, itemIndex, className, 'create', {
 						key: this.getNodeParameter('key', itemIndex) as string,
 					});
 				} else {
 					const lookupBy = this.getNodeParameter('lookupBy', itemIndex, 'id') as string;
-					args = mutationArgs.call(this, itemIndex, className, 'update', {
+					args = await mutationArgs.call(this, itemIndex, className, 'update', {
 						objectId:
 							lookupBy === 'id'
 								? toElementId(
@@ -869,7 +939,7 @@ async function executeUpsert(
 					operations.push({
 						alias,
 						field: `update${className}`,
-						args: mutationArgs.call(this, itemIndex, className, 'update', {
+						args: await mutationArgs.call(this, itemIndex, className, 'update', {
 							objectId: match.objectId,
 							fullpath: match.objectId === undefined ? match.fullpath : undefined,
 						}),
@@ -894,7 +964,7 @@ async function executeUpsert(
 				operations.push({
 					alias,
 					field: `create${className}`,
-					args: mutationArgs.call(this, itemIndex, className, 'create', {
+					args: await mutationArgs.call(this, itemIndex, className, 'create', {
 						key: upsertKey.call(this, itemIndex),
 					}),
 					selection,
@@ -915,7 +985,7 @@ async function executeUpsert(
 
 /** The key a newly created object gets, defaulting to the match value. */
 function upsertKey(this: IExecuteFunctions, itemIndex: number): string {
-	const explicit = (this.getNodeParameter('key', itemIndex, '') as string).trim();
+	const explicit = (additionalField<string>).call(this, 'key', itemIndex, '').trim();
 	if (explicit !== '') return explicit;
 
 	const matchBy = this.getNodeParameter('matchBy', itemIndex, 'field') as string;
@@ -1138,7 +1208,7 @@ function assetSelection(
 	const extra: string[] = [];
 
 	if (this.getNodeParameter('downloadFile', itemIndex, false) === true) {
-		const thumbnail = (this.getNodeParameter('thumbnail', itemIndex, '') as string).trim();
+		const thumbnail = (additionalField<string>).call(this, 'thumbnail', itemIndex, '').trim();
 
 		extra.push(
 			thumbnail === '' ? 'data' : `data(thumbnail: ${JSON.stringify(thumbnail)})`,
@@ -1173,7 +1243,9 @@ async function assetToItem(
 		return toItem(node, itemIndex);
 	}
 
-	const property = (this.getNodeParameter('outputBinaryField', itemIndex, 'data') as string).trim();
+	const property = (additionalField<string>)
+		.call(this, 'outputBinaryField', itemIndex, 'data')
+		.trim();
 	const buffer = Buffer.from(node.data, 'base64');
 
 	// The base64 blob is now in the binary slot; leaving it in json as well would
@@ -1489,7 +1561,7 @@ async function executeAssetWrite(
  * Detection reads the binary's own mime type, which n8n already carries.
  */
 function resolveAssetType(this: IExecuteFunctions, itemIndex: number, filename: string): string {
-	const chosen = this.getNodeParameter('assetType', itemIndex, 'auto') as string;
+	const chosen = (additionalField<string>).call(this, 'assetType', itemIndex, 'auto');
 
 	if (chosen !== 'auto') return chosen;
 

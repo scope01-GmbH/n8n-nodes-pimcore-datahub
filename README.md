@@ -58,7 +58,7 @@ introspection switched off.
 |---|---|
 | Get | By ID or full path. Reads are batched too — 200 IDs is one request. |
 | Get Many | Filter, sort, pagination. *Return All* pages through automatically. |
-| Create | Needs a key and a parent. |
+| Create | Needs a key and a parent. Field values come from the mapper. |
 | Update | By ID or full path. |
 | Create or Update | Upsert. See below. |
 | Delete | By ID or full path. |
@@ -90,7 +90,8 @@ custom queries, documents, field collections and object bricks.
 ## Fields
 
 GraphQL returns only what you ask for, so every read operation has a **Fields**
-setting:
+setting. (This governs what a read *returns*; what a write *sends* is covered
+under *Writing field values* below.)
 
 - **All Scalar Fields** — every plain field, plus the ID and full path of related
   objects. *Relation Depth* controls how far relations are followed; `0` omits
@@ -110,6 +111,35 @@ folders — the node writes one inline fragment per member type and drops the
 fields a member does not have, so asking for `mimetype` does not break on the
 folders in the result.
 
+## Writing field values
+
+Every write operation — Create, Update, Create or Update — takes its field
+values through an **Input Mode**:
+
+- **Mapped Fields** (default) — the **Fields to Write** mapper. It loads the
+  class's writable fields from the endpoint and gives each one its own input,
+  typed from the schema: a toggle for a boolean, a number field for an `Int`, a
+  JSON editor for a relation. Switch it to *Map Automatically* to take the
+  fields straight off the incoming item, matched by name.
+- **Raw JSON** — one JSON object for the whole input, as in
+  `{"number": "SW-100", "image": {"id": 483}}`. This is the only mode available
+  on an endpoint with introspection disabled, since the mapper has no field list
+  to load there.
+
+The mapper offers only what a mutation actually accepts. Identity and placement
+— key, parent, published — are set through their own parameters rather than as
+mapped fields, so there is one place to set each. Pimcore's read-only metadata
+(`creationDate`, `classname`, `version`, …) is left out entirely.
+
+In *Map Automatically* mode the item is narrowed to the fields the class
+accepts before being sent. An item that came out of a Get carries `id`,
+`fullpath` and the rest of the metadata, and GraphQL rejects an entire mutation
+on the first field the input type does not define.
+
+Fields are opted into rather than all pre-added: a Pimcore product class
+routinely carries forty attributes, and a form with forty empty inputs is worse
+than a short one you add to.
+
 ## Create or Update
 
 ```
@@ -118,6 +148,7 @@ Match Field:   number
 Match Value:   {{ $json.article_number }}
 If Not Found:  Create
 Parent Path:   /products/import
+Input Mode:    Mapped Fields
 ```
 
 Field matching runs one lookup document for the whole batch, then one mutation

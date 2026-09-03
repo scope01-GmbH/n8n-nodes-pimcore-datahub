@@ -8,6 +8,9 @@ const LOOKUP_OPERATIONS = ['get', 'update', 'delete'];
 /** Operations that write. */
 const WRITE_OPERATIONS = ['create', 'update', 'createOrUpdate', 'delete'];
 
+/** Write operations that carry field values. */
+const INPUT_OPERATIONS = ['create', 'update', 'createOrUpdate'];
+
 export const dataObjectOperations: INodeProperties[] = [
 	{
 		displayName: 'Operation',
@@ -238,20 +241,6 @@ export const dataObjectFields: INodeProperties[] = [
 		description: 'Object key, which becomes the last segment of its full path',
 	},
 	{
-		displayName: 'Key',
-		name: 'key',
-		type: 'string',
-		default: '',
-		displayOptions: {
-			show: {
-				...showForDataObject,
-				operation: ['createOrUpdate'],
-				ifNotFound: ['create'],
-			},
-		},
-		description: 'Object key used when creating. Leave empty to derive it from the match value.',
-	},
-	{
 		displayName: 'Parent',
 		name: 'parentBy',
 		type: 'options',
@@ -293,17 +282,6 @@ export const dataObjectFields: INodeProperties[] = [
 			},
 		},
 	},
-	{
-		displayName: 'Published',
-		name: 'published',
-		type: 'boolean',
-		default: true,
-		displayOptions: {
-			show: { ...showForDataObject, operation: ['create', 'createOrUpdate'] },
-		},
-		description: 'Whether newly created objects are published',
-	},
-
 	// ------------------------------------------------------------ upsert
 	{
 		displayName: 'Match By',
@@ -403,6 +381,59 @@ export const dataObjectFields: INodeProperties[] = [
 
 	// ------------------------------------------------------------ input
 	{
+		// Raw JSON is not a legacy escape hatch, it is the only mode that works on
+		// an endpoint with introspection disabled: the mapper has no field list to
+		// offer there. Mirrors the auto / selected / raw choice the read side uses.
+		displayName: 'Input Mode',
+		name: 'inputMode',
+		type: 'options',
+		options: [
+			{
+				name: 'Mapped Fields',
+				value: 'mapped',
+				description: 'Pick fields from the class schema and map a value to each',
+			},
+			{
+				name: 'Raw JSON',
+				value: 'json',
+				description:
+					'Supply the whole input object as JSON. The only mode available when the endpoint has introspection disabled.',
+			},
+		],
+		default: 'mapped',
+		displayOptions: {
+			show: { ...showForDataObject, operation: INPUT_OPERATIONS },
+		},
+		description: 'How the field values for this write are supplied',
+	},
+	{
+		// mode 'add' rather than 'update' / 'upsert' on purpose: the matching
+		// columns the mapper would offer are a second, weaker way to express what
+		// Look Up By and Match By already do, and Pimcore matches on id, full path
+		// or a filterable field rather than on the written columns.
+		displayName: 'Fields to Write',
+		name: 'fieldsToWrite',
+		type: 'resourceMapper',
+		default: { mappingMode: 'defineBelow', value: null },
+		required: true,
+		noDataExpression: true,
+		typeOptions: {
+			loadOptionsDependsOn: ['className.value'],
+			resourceMapper: {
+				resourceMapperMethod: 'getWritableFields',
+				mode: 'add',
+				fieldWords: { singular: 'field', plural: 'fields' },
+				// Pimcore classes are wide - a product class routinely carries forty
+				// attributes - so fields are opted into rather than all pre-added.
+				addAllFields: false,
+				supportAutoMap: true,
+			},
+		},
+		displayOptions: {
+			show: { ...showForDataObject, operation: INPUT_OPERATIONS, inputMode: ['mapped'] },
+		},
+	},
+	{
 		displayName: 'Input',
 		name: 'input',
 		type: 'json',
@@ -411,11 +442,58 @@ export const dataObjectFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				...showForDataObject,
-				operation: ['create', 'update', 'createOrUpdate'],
+				operation: INPUT_OPERATIONS,
+				inputMode: ['json'],
 			},
 		},
 		description:
 			'Field values to write, as JSON. Relations take {"ID": 123} or {"fullpath": "/a/b"} entries. Localized fields are written in the language given by Default Language.',
+	},
+	// Split per operation rather than one collection for both: Create already
+	// takes Key as a required field above, so offering it here as well would give
+	// two places to set one value.
+	{
+		displayName: 'Additional Fields',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { ...showForDataObject, operation: ['create'] } },
+		options: [
+			{
+				displayName: 'Published',
+				name: 'published',
+				type: 'boolean',
+				default: true,
+				description: 'Whether the created object is published',
+			},
+		],
+	},
+	{
+		displayName: 'Additional Fields',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { ...showForDataObject, operation: ['createOrUpdate'] } },
+		options: [
+			{
+				displayName: 'Key',
+				name: 'key',
+				type: 'string',
+				default: '',
+				placeholder: 'my-product',
+				description:
+					'Object key used when creating, which becomes the last segment of the full path. Leave empty to derive it from the match value.',
+			},
+			{
+				displayName: 'Published',
+				name: 'published',
+				type: 'boolean',
+				default: true,
+				description: 'Whether a newly created object is published',
+			},
+		],
 	},
 
 	// ------------------------------------------------------------ selection

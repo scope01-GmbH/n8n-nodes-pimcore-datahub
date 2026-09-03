@@ -165,29 +165,6 @@ export const assetFields: INodeProperties[] = [
 		description: 'Filename the asset gets in Pimcore, including its extension',
 	},
 	{
-		// `createAsset` maps this straight onto a Pimcore\Model\Asset subclass, so
-		// it decides what the asset *is*, not merely how it is labelled.
-		displayName: 'Asset Type',
-		name: 'assetType',
-		type: 'options',
-		options: [
-			{ name: 'Archive', value: 'archive' },
-			{ name: 'Audio', value: 'audio' },
-			{
-				name: 'Detect From File',
-				value: 'auto',
-				description: 'Derive the type from the binary mime type',
-			},
-			{ name: 'Document', value: 'document' },
-			{ name: 'Image', value: 'image' },
-			{ name: 'Text', value: 'text' },
-			{ name: 'Unknown', value: 'unknown' },
-			{ name: 'Video', value: 'video' },
-		],
-		default: 'auto',
-		displayOptions: { show: { ...showForAsset, operation: ['uploadAsset'] } },
-	},
-	{
 		displayName: 'Parent',
 		name: 'assetParentBy',
 		type: 'options',
@@ -248,6 +225,40 @@ export const assetFields: INodeProperties[] = [
 			show: { ...showForAsset, operation: ['updateAsset'], replaceFile: [true] },
 		},
 		hint: 'The name of the input binary field containing the replacement file',
+	},
+
+	{
+		displayName: 'Additional Fields',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { ...showForAsset, operation: ['uploadAsset'] } },
+		options: [
+			{
+				// `createAsset` maps this straight onto a Pimcore\Model\Asset
+				// subclass, so it decides what the asset *is*, not merely how it is
+				// labelled. Left out, the mime type of the binary decides.
+				displayName: 'Asset Type',
+				name: 'assetType',
+				type: 'options',
+				options: [
+					{ name: 'Archive', value: 'archive' },
+					{ name: 'Audio', value: 'audio' },
+					{
+						name: 'Detect From File',
+						value: 'auto',
+						description: 'Derive the type from the binary mime type',
+					},
+					{ name: 'Document', value: 'document' },
+					{ name: 'Image', value: 'image' },
+					{ name: 'Text', value: 'text' },
+					{ name: 'Unknown', value: 'unknown' },
+					{ name: 'Video', value: 'video' },
+				],
+				default: 'auto',
+			},
+		],
 	},
 
 	// ------------------------------------------------------------ metadata
@@ -313,10 +324,14 @@ export const assetFields: INodeProperties[] = [
 			'Whether to fetch the asset file itself and attach it as binary data. Datahub sends the file base64 encoded inside the GraphQL response, so this is memory hungry for large files or long listings.',
 	},
 	{
-		displayName: 'Output Binary Field',
-		name: 'outputBinaryField',
-		type: 'string',
-		default: 'data',
+		// Gated on Download File rather than folded into it: the switch decides
+		// whether the node emits binary data at all, and these two only have a
+		// meaning once it is on.
+		displayName: 'Additional Fields',
+		name: 'additionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
 		displayOptions: {
 			show: {
 				...showForAsset,
@@ -324,23 +339,24 @@ export const assetFields: INodeProperties[] = [
 				downloadFile: [true],
 			},
 		},
-		hint: 'The name of the output binary field to put the file in',
-	},
-	{
-		displayName: 'Thumbnail',
-		name: 'thumbnail',
-		type: 'string',
-		default: '',
-		placeholder: 'content',
-		displayOptions: {
-			show: {
-				...showForAsset,
-				operation: ['getAsset', 'getAllAssets'],
-				downloadFile: [true],
+		options: [
+			{
+				displayName: 'Output Binary Field',
+				name: 'outputBinaryField',
+				type: 'string',
+				default: 'data',
+				hint: 'The name of the output binary field to put the file in',
 			},
-		},
-		description:
-			'Name of a Pimcore thumbnail configuration to download instead of the original file. Leave empty for the original.',
+			{
+				displayName: 'Thumbnail',
+				name: 'thumbnail',
+				type: 'string',
+				default: '',
+				placeholder: 'content',
+				description:
+					'Name of a Pimcore thumbnail configuration to download instead of the original file. Leave empty for the original.',
+			},
+		],
 	},
 
 	// ------------------------------------------------------------ selection

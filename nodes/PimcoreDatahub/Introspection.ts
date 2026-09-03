@@ -20,6 +20,14 @@ export interface SchemaType {
 	name: string;
 	description?: string | null;
 	fields?: SchemaField[] | null;
+	/**
+	 * Fields of an INPUT_OBJECT, e.g. `UpdateProductInput`.
+	 *
+	 * GraphQL keeps the writable shape of a type here rather than in `fields`,
+	 * which is null on every INPUT_OBJECT. This is the authoritative list of what
+	 * a mutation accepts, and what the write field mapper is built from.
+	 */
+	inputFields?: SchemaField[] | null;
 	possibleTypes?: Array<{ name: string }> | null;
 }
 
@@ -56,6 +64,10 @@ export class SchemaIndex {
 
 	getFields(typeName: string): SchemaField[] {
 		return this.types.get(typeName)?.fields ?? [];
+	}
+
+	getInputFields(typeName: string): SchemaField[] {
+		return this.types.get(typeName)?.inputFields ?? [];
 	}
 
 	/**
@@ -139,6 +151,11 @@ query IntrospectDatahub {
       description
       possibleTypes { name }
       fields(includeDeprecated: false) {
+        name
+        description
+        type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
+      }
+      inputFields {
         name
         description
         type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
