@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-base.pimcoreDatahub",
+	"node": "@scope01gmbh/n8n-nodes-pimcore-datahub.pimcoreDatahub",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Data & Storage", "Development"],
